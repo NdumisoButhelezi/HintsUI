@@ -1,0 +1,1248 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Multi-Agent Hints API</title>
+  <!-- Firebase SDK -->
+  <script src="https://www.gstatic.com/firebasejs/10.3.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.3.0/firebase-auth-compat.js"></script>
+  <style>
+    body { 
+      font-family: 'Segoe UI', Arial, sans-serif;
+      max-width: 800px; 
+      margin: 0 auto; 
+      padding: 1rem;
+      background-color: #f9f9f9;
+      color: #333;
+    }
+    
+    h1 {
+      color: #2c3e50;
+      text-align: center;
+      margin-bottom: 1.5rem;
+    }
+    
+    .section {
+      background: white;
+      border-radius: 8px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+      padding: 1.5rem;
+      margin-bottom: 1.5rem;
+    }
+    
+    .section h3 {
+      margin-top: 0;
+      color: #2c3e50;
+      border-bottom: 1px solid #eee;
+      padding-bottom: 0.75rem;
+    }
+    
+    /* Chat Messages */
+    #chat-history {
+      display: flex;
+      flex-direction: column;
+      height: 400px;
+      overflow-y: auto;
+      border: 1px solid #ddd;
+      border-radius: 8px;
+      padding: 1rem;
+      background: #f9f9f9;
+      margin-bottom: 1rem;
+    }
+    
+    .message {
+      padding: 0.75rem 1rem;
+      border-radius: 8px;
+      margin-bottom: 0.75rem;
+      max-width: 80%;
+    }
+    
+    .user-message {
+      align-self: flex-end;
+      background-color: #d1ecf1;
+      color: #0c5460;
+    }
+    
+    .response-message {
+      align-self: flex-start;
+      background-color: #f8f9fa;
+      color: #383d41;
+      border-left: 4px solid #6c757d;
+      white-space: pre-wrap;
+    }
+    
+    /* Input area */
+    #chat-input {
+      display: flex;
+      gap: 0.5rem;
+    }
+    
+    #question {
+      flex: 1;
+      padding: 0.75rem;
+      font-size: 1rem;
+      border: 1px solid #ddd;
+      border-radius: 4px;
+      outline: none;
+      transition: border-color 0.2s;
+    }
+    
+    #question:focus {
+      border-color: #80bdff;
+      box-shadow: 0 0 0 0.2rem rgba(0,123,255,.25);
+    }
+    
+    button {
+      padding: 0.75rem 1rem;
+      font-size: 0.9rem;
+      background-color: #4e73df;
+      color: white;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+      transition: background-color 0.2s;
+    }
+    
+    button:hover {
+      background-color: #375dce;
+    }
+    
+    button:disabled {
+      background-color: #b9c1e2;
+      cursor: not-allowed;
+    }
+    
+    /* Status and connection indicators */
+    .status-indicator {
+      display: flex;
+      align-items: center;
+      font-size: 0.9rem;
+      margin-top: 0.5rem;
+    }
+    
+    .status-dot {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      margin-right: 0.5rem;
+    }
+    
+    .status-dot.online {
+      background-color: #28a745;
+    }
+    
+    .status-dot.offline {
+      background-color: #dc3545;
+    }
+    
+    .status-dot.connecting {
+      background-color: #ffc107;
+    }
+    
+    /* Form inputs */
+    .form-group {
+      margin-bottom: 1rem;
+    }
+    
+    .form-group input {
+      width: 100%;
+      padding: 0.75rem;
+      font-size: 0.9rem;
+      border: 1px solid #ddd;
+      border-radius: 4px;
+    }
+    
+    .form-actions {
+      display: flex;
+      gap: 0.5rem;
+    }
+    
+    /* Utility classes */
+    .hidden {
+      display: none !important;
+    }
+    
+    .text-center {
+      text-align: center;
+    }
+    
+    .text-sm {
+      font-size: 0.85rem;
+      color: #6c757d;
+    }
+    
+    .text-error {
+      color: #dc3545;
+    }
+    
+    .mt-1 {
+      margin-top: 0.5rem;
+    }
+    
+    .mb-1 {
+      margin-bottom: 0.5rem;
+    }
+    
+    /* Auto-refresh checkbox */
+    .auto-refresh {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      font-size: 0.85rem;
+      color: #555;
+      margin-top: 0.5rem;
+    }
+
+    /* Loading animation for responses */
+    .loading-dots:after {
+      content: '.';
+      animation: dots 1.5s steps(5, end) infinite;
+    }
+
+    @keyframes dots {
+      0%, 20% { content: '.'; }
+      40% { content: '..'; }
+      60% { content: '...'; }
+      80%, 100% { content: ''; }
+    }
+    
+    /* Clear chat button */
+    #clear-chat {
+      font-size: 0.8rem;
+      padding: 0.3rem 0.5rem;
+      background-color: #f8f9fa;
+      color: #6c757d;
+      border: 1px solid #ddd;
+      margin-left: auto;
+      display: block;
+    }
+
+        /* Dev mode toggle */
+    .dev-mode-toggle {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-top: 1rem;
+      padding: 0.5rem;
+      background-color: #f8f9fa;
+      border-radius: 4px;
+      border: 1px dashed #ddd;
+    }
+    
+    .dev-mode-toggle button {
+      padding: 0.4rem 0.6rem;
+      font-size: 0.8rem;
+      background-color: #6c757d;
+    }
+    
+    .dev-mode-badge {
+      font-size: 0.7rem;
+      padding: 0.2rem 0.5rem;
+      border-radius: 10px;
+      font-weight: bold;
+      margin-left: 0.5rem;
+    }
+    
+    .dev-mode-badge.on {
+      background-color: #fd7e14;
+      color: white;
+    }
+    
+    .dev-mode-badge.off {
+      background-color: #6c757d;
+      color: white;
+    }
+
+    /* Media queries for responsive design */
+    @media (max-width: 600px) {
+      body {
+        padding: 0.5rem;
+      }
+      
+      .section {
+        padding: 1rem;
+      }
+      
+      #chat-history {
+        height: 300px;
+      }
+      
+      .message {
+        max-width: 90%;
+      }
+    }
+  </style>
+</head>
+<body>
+
+<h1>Multi-Agent Hints API</h1>
+
+<!-- Server Configuration Section -->
+<div id="server-config" class="section">
+  <h3>Server Connection</h3>
+  <div class="form-group">
+    <label for="server-url">API Server URL:</label>
+    <div style="display: flex; gap: 0.5rem;">
+      <input 
+        id="server-url" 
+        type="text" 
+        value="http://localhost:8000" 
+        placeholder="Enter your server URL here" />
+      <button onclick="saveServerUrl()">Save</button>
+    </div>
+  </div>
+  
+  <div style="display: flex; justify-content: space-between; align-items: center;">
+    <button onclick="autoDetectUrl()" style="padding: 0.5rem 0.75rem;">
+      <span id="detect-btn-text">Auto-Detect URL</span>
+    </button>
+    
+    <div class="auto-refresh">
+      <input type="checkbox" id="auto-refresh" />
+      <label for="auto-refresh">Check URL every 60s</label>
+    </div>
+  </div>
+  
+  <div class="status-indicator">
+    <div id="status-dot" class="status-dot connecting"></div>
+    <span id="status-text">Checking connection...</span>
+  </div>
+  
+  <p class="text-sm mt-1">
+    When you start the server with LocalTunnel, it creates a <code>localtunnel_url.txt</code> file. Auto-detect will try to read this file to connect automatically.
+  </p>
+  
+  <!-- Dev Mode Toggle -->
+  <div class="dev-mode-toggle">
+    <div>
+      <strong>Development Mode</strong> 
+      <span id="dev-mode-status" class="dev-mode-badge off">OFF</span>
+    </div>
+    <button id="dev-mode-toggle">Toggle Dev Mode</button>
+  </div>
+  <p class="text-sm mt-1">
+    Dev mode bypasses authentication requirements. Use for local testing only.
+  </p>
+</div>
+
+<!-- Authentication Section -->
+<div id="auth-section" class="section">
+  <h3>Authentication</h3>
+  <div id="login-container">
+    <div class="form-group">
+      <input 
+        type="email" 
+        id="email" 
+        placeholder="Email" 
+      />
+    </div>
+    <div class="form-group">
+      <input 
+        type="password" 
+        id="password" 
+        placeholder="Password" 
+      />
+    </div>
+    <div class="form-actions">
+      <button onclick="signIn()">Sign In</button>
+      <button onclick="signUp()">Create Account</button>
+    </div>
+    <p class="text-sm mt-1">
+      <a href="#" onclick="forgotPassword(); return false;">Forgot password?</a>
+    </p>
+  </div>
+  
+  <div id="user-info" class="hidden">
+    <div style="display: flex; justify-content: space-between; align-items: center;">
+      <p style="margin: 0;">Signed in as: <strong id="user-email"></strong></p>
+      <button onclick="signOut()">Sign Out</button>
+    </div>
+  </div>
+</div>
+
+<!-- Chat Section (Initially Hidden) -->
+<div id="chat-section" class="section hidden">
+  <div style="display: flex; justify-content: space-between; align-items: center;">
+    <h3 style="margin: 0;">Agent Chat</h3>
+    <button id="clear-chat" onclick="clearChat()">Clear Chat</button>
+  </div>
+
+  <div id="chat-history"></div>
+  
+  <div id="chat-input">
+    <input 
+      id="question" 
+      type="text" 
+      placeholder="Ask your question here..." 
+      onkeypress="if(event.key === 'Enter') sendQuestion()"
+    />
+    <button onclick="sendQuestion()" id="send-btn">Send</button>
+  </div>
+</div>
+
+<div id="help-section" class="section">
+  <h3>How to Use</h3>
+  <ol>
+    <li>First, make sure your server is running with LocalTunnel</li>
+    <li>Use the Auto-Detect button to find your server URL</li>
+    <li>Sign in with your account (or create a new one)</li>
+    <li>Ask questions in the chat interface</li>
+  </ol>
+  <p class="text-sm">This frontend automatically connects to your LocalTunnel server that's running the Multi-Agent Hints API.</p>
+</div>
+
+<script>
+// Chat history management
+let chatHistory = [];
+
+// Try to load chat history from localStorage
+try {
+  const savedChat = localStorage.getItem('chatHistory');
+  if (savedChat) {
+    chatHistory = JSON.parse(savedChat);
+  }
+} catch (e) {
+  console.error('Error loading chat history:', e);
+  // Reset if there's an error
+  chatHistory = [];
+}
+
+// Firebase Config
+const firebaseConfig = {
+  apiKey: "AIzaSyDuBfegVMOnplkvkuKpjVkjIzHol8ClOL0",
+  authDomain: "ollama-5063b.firebaseapp.com",
+  projectId: "ollama-5063b",
+  storageBucket: "ollama-5063b.firebasestorage.app",
+  messagingSenderId: "610872651211",
+  appId: "1:610872651211:web:451174aad94689f717da4e",
+  measurementId: "G-T5K3LE6VVZ"
+};
+
+// Server connection variables
+let autoCheckInterval = null;
+let isConnected = false;
+let connectionRetries = 0;
+const MAX_RETRIES = 3;
+let currentServerUrl = '';
+let devModeEnabled = false; // Flag for development mode
+
+// Check if we should enable dev mode (skips auth)
+const storedDevMode = localStorage.getItem('devModeEnabled');
+if (storedDevMode === 'true') {
+  devModeEnabled = true;
+  console.log("🛠️ Development mode enabled - auth bypassed");
+}
+
+// Update UI based on dev mode status
+function updateDevModeUI() {
+  const devModeStatus = document.getElementById('dev-mode-status');
+  if (devModeEnabled) {
+    devModeStatus.textContent = 'ON';
+    devModeStatus.className = 'dev-mode-badge on';
+  } else {
+    devModeStatus.textContent = 'OFF';
+    devModeStatus.className = 'dev-mode-badge off';
+  }
+}
+
+// Toggle development mode
+function toggleDevMode() {
+  devModeEnabled = !devModeEnabled;
+  localStorage.setItem('devModeEnabled', devModeEnabled);
+  updateDevModeUI();
+  
+  // Update authentication state
+  const user = firebase.auth().currentUser;
+  if (devModeEnabled) {
+    // Show chat interface even if not logged in
+    document.getElementById('login-container').classList.add('hidden');
+    document.getElementById('user-info').classList.remove('hidden');
+    document.getElementById('user-email').textContent = "DEV MODE (No Auth)";
+    document.getElementById('chat-section').classList.remove('hidden');
+  } else if (!user) {
+    // If turning off dev mode and not logged in
+    document.getElementById('login-container').classList.remove('hidden');
+    document.getElementById('user-info').classList.add('hidden');
+    document.getElementById('chat-section').classList.add('hidden');
+  }
+}
+
+// Initialize Firebase
+firebase.initializeApp(firebaseConfig);
+
+// Auth state change listener
+firebase.auth().onAuthStateChanged(function(user) {
+  if (user || devModeEnabled) {
+    // User is signed in OR dev mode is enabled
+    document.getElementById('login-container').classList.add('hidden');
+    document.getElementById('user-info').classList.remove('hidden');
+    
+    if (user) {
+      document.getElementById('user-email').textContent = user.email;
+    } else if (devModeEnabled) {
+      document.getElementById('user-email').textContent = "DEV MODE (No Auth)";
+    }
+    
+    document.getElementById('chat-section').classList.remove('hidden');
+    
+    // Display chat history if any exists
+    displayChatHistory();
+    
+    // Check server connection status again with auth token if not in dev mode
+    checkServerConnection(getCurrentServerUrl(), !devModeEnabled);
+  } else {
+    // User is signed out and not in dev mode
+    document.getElementById('login-container').classList.remove('hidden');
+    document.getElementById('user-info').classList.add('hidden');
+    document.getElementById('chat-section').classList.add('hidden');
+  }
+});
+
+// Load saved URL and check server status when page loads
+window.addEventListener('DOMContentLoaded', () => {
+  // Load saved URL
+  loadServerUrl();
+  
+  // Set up auto-refresh checkbox
+  const autoRefreshCheckbox = document.getElementById('auto-refresh');
+  autoRefreshCheckbox.checked = localStorage.getItem('autoRefresh') === 'true';
+  toggleAutoRefresh(autoRefreshCheckbox.checked);
+  
+  // Add event listener for checkbox
+  autoRefreshCheckbox.addEventListener('change', (e) => {
+    toggleAutoRefresh(e.target.checked);
+    localStorage.setItem('autoRefresh', e.target.checked);
+  });
+  
+  // Initialize dev mode status
+  updateDevModeUI();
+  
+  // Add dev mode toggle listener
+  document.getElementById('dev-mode-toggle').addEventListener('click', toggleDevMode);
+  
+  // Make the question input focus when the page loads
+  setTimeout(() => {
+    const questionInput = document.getElementById('question');
+    if (questionInput) questionInput.focus();
+  }, 1000);
+  
+  // Initial connection check
+  checkServerConnection(getCurrentServerUrl());
+  
+  // Try auto-detect on load (if configured)
+  if (localStorage.getItem('autoDetectOnLoad') === 'true') {
+    autoDetectUrl();
+  }
+});
+
+// Display existing chat history
+function displayChatHistory() {
+  const chatContainer = document.getElementById('chat-history');
+  chatContainer.innerHTML = ''; // Clear existing messages
+  
+  if (chatHistory.length === 0) {
+    // Show welcome message if no history
+    const welcomeMsg = document.createElement('div');
+    welcomeMsg.className = 'message response-message';
+    welcomeMsg.textContent = 'Welcome to the Multi-Agent Hints API! Ask a question to get started.';
+    chatContainer.appendChild(welcomeMsg);
+    return;
+  }
+  
+  // Add each message to the chat container
+  chatHistory.forEach(msg => {
+    const msgElement = document.createElement('div');
+    msgElement.className = `message ${msg.type === 'user' ? 'user-message' : 'response-message'}`;
+    msgElement.textContent = msg.content;
+    chatContainer.appendChild(msgElement);
+  });
+  
+  // Scroll to the bottom
+  scrollChatToBottom();
+}
+
+// Get current server URL from input or localStorage
+function getCurrentServerUrl() {
+  // Try to get from input field first
+  let url = document.getElementById('server-url').value.trim();
+  
+  // If not available, try localStorage
+  if (!url) {
+    url = localStorage.getItem('serverUrl') || '';
+  }
+  
+  // Store current URL
+  currentServerUrl = url;
+  
+  return url;
+}
+
+// Load server URL from localStorage or use default
+function loadServerUrl() {
+  const serverUrl = localStorage.getItem('serverUrl');
+  if (serverUrl) {
+    document.getElementById('server-url').value = serverUrl;
+    currentServerUrl = serverUrl;
+  }
+}
+
+// Toggle auto-refresh for server URL
+function toggleAutoRefresh(enabled) {
+  if (enabled) {
+    // Start checking every 60 seconds
+    if (!autoCheckInterval) {
+      autoCheckInterval = setInterval(() => {
+        checkServerConnection(getCurrentServerUrl());
+        // Also try auto-detect if currently not connected
+        if (!isConnected) {
+          autoDetectUrl(true); // Silent mode
+        }
+      }, 60000); // 60 seconds
+    }
+  } else {
+    // Stop auto-checking
+    if (autoCheckInterval) {
+      clearInterval(autoCheckInterval);
+      autoCheckInterval = null;
+    }
+  }
+}
+
+// Function to check server connection status
+async function checkServerConnection(url, withAuth = false) {
+  if (!url) return false;
+  
+  // Update UI to show connecting status
+  const statusDot = document.getElementById('status-dot');
+  const statusText = document.getElementById('status-text');
+  
+  statusDot.className = 'status-dot connecting';
+  statusText.textContent = 'Checking connection...';
+  
+  console.log(`Testing connection to: ${url}`);
+  
+  try {
+    // Prepare headers
+    const headers = {
+      'Accept': 'application/json',
+      'X-Requested-With': 'XMLHttpRequest' // Helps with CORS preflight in some cases
+    };
+    
+    // Add auth token if requested and available
+    if (withAuth) {
+      const user = firebase.auth().currentUser;
+      if (user) {
+        const token = await user.getIdToken();
+        headers['Authorization'] = `Bearer ${token}`;
+      }
+    }
+    
+    // Try different modes to work around CORS issues
+    let response;
+    
+    // First try - normal cors mode with credentials omitted
+    try {
+      response = await Promise.race([
+        fetch(`${url}/`, {
+          method: 'GET',
+          headers,
+          mode: 'cors',
+          credentials: 'omit', // Don't send cookies
+          cache: 'no-cache' // Don't use cached responses
+        }),
+        // Timeout after 5 seconds
+        new Promise((_, reject) => 
+          setTimeout(() => reject(new Error('Connection timeout')), 5000)
+        )
+      ]);
+    } catch (e) {
+      console.log(`First attempt failed: ${e.message}`);
+      
+      // Second try - no-cors mode (limited but might work for checking if server is up)
+      try {
+        const noCorsResponse = await fetch(`${url}/`, { 
+          method: 'GET',
+          mode: 'no-cors',
+          cache: 'no-cache'
+        });
+        
+        // If we get here, the server is responding, but we can't read the response
+        // This is actually good enough for a connection check
+        console.log("Server appears to be up (no-cors mode)");
+        statusDot.className = 'status-dot online';
+        statusText.textContent = `Connected (CORS limited)`;
+        isConnected = true;
+        return true;
+      } catch (e2) {
+        throw e; // Throw the original error
+      }
+    }
+    
+    if (response.ok) {
+      try {
+        const data = await response.json();
+        
+        // Update UI to show connected status
+        statusDot.className = 'status-dot online';
+        statusText.textContent = `Connected (API v${data.version || '2.0'})`;
+      } catch (e) {
+        // Even if we can't parse the JSON, the server is up
+        statusDot.className = 'status-dot online';
+        statusText.textContent = `Connected (API available)`;
+      }
+      
+      // Reset connection state
+      isConnected = true;
+      connectionRetries = 0;
+      
+      return true;
+    } else {
+      throw new Error(`HTTP Error: ${response.status}`);
+    }
+  } catch (error) {
+    console.error("Connection error:", error);
+    
+    // Update UI to show disconnected status
+    statusDot.className = 'status-dot offline';
+    statusText.textContent = `Cannot connect: ${error.message}`;
+    
+    isConnected = false;
+    return false;
+  }
+}
+
+// Save server URL to localStorage and check connection
+async function saveServerUrl() {
+  const serverUrl = document.getElementById('server-url').value.trim();
+  if (!serverUrl) {
+    alert('Please enter a valid server URL');
+    return;
+  }
+  
+  localStorage.setItem('serverUrl', serverUrl);
+  currentServerUrl = serverUrl;
+  
+  // Check if the server is reachable
+  const success = await checkServerConnection(serverUrl);
+  if (success) {
+    // Show success message without alert
+    const statusText = document.getElementById('status-text');
+    statusText.textContent = 'Connected and URL saved!';
+  }
+}
+
+// Function to auto-detect server URL from localtunnel_url.txt
+async function autoDetectUrl(silent = false) {
+  // Show detecting state in button
+  const detectBtn = document.getElementById('detect-btn-text');
+  const originalText = detectBtn.textContent;
+  detectBtn.textContent = 'Detecting...';
+  
+  // Update status indicators
+  const statusDot = document.getElementById('status-dot');
+  const statusText = document.getElementById('status-text');
+  statusDot.className = 'status-dot connecting';
+  statusText.textContent = 'Detecting server URL...';
+  
+  try {
+    // Debug info for troubleshooting connection issues
+    console.log("Auto-detect: Starting URL detection process");
+    
+    // First attempt: try to fetch from the same origin
+    try {
+      const urlFile = await fetch('/localtunnel_url.txt', { 
+        cache: 'no-store',
+        headers: { 'Cache-Control': 'no-cache' },
+        mode: 'no-cors' // Try with no-cors mode to avoid CORS errors
+      });
+      
+      console.log("Auto-detect: First attempt response status:", urlFile.status);
+      
+      if (urlFile.ok) {
+        const url = await urlFile.text();
+        const cleanUrl = url.trim();
+        if (cleanUrl) {
+          document.getElementById('server-url').value = cleanUrl;
+          localStorage.setItem('serverUrl', cleanUrl);
+          currentServerUrl = cleanUrl;
+          
+          // Check connection with the new URL
+          const connected = await checkServerConnection(cleanUrl);
+          if (connected && !silent) {
+            // Just update the status instead of showing alert
+            statusText.textContent = 'Auto-detected URL and connected!';
+          }
+          
+          // Reset button text
+          detectBtn.textContent = originalText;
+          return connected;
+        }
+      }
+    } catch (e) {
+      console.log("Could not fetch from same origin, trying common paths...");
+    }
+    
+    // Second attempt: Try other common paths
+    const possiblePaths = [
+      '/localtunnel_url.txt',  // Try the root path first (most common)
+      '/api/localtunnel_url.txt', 
+      '/static/localtunnel_url.txt',
+      '/public/localtunnel_url.txt',
+      '/url.txt',
+      '/tunnel_url.txt'
+    ];
+    
+    for (const path of possiblePaths) {
+      try {
+        const urlFile = await fetch(path, { 
+          cache: 'no-store',
+          headers: { 'Cache-Control': 'no-cache' }
+        });
+        
+        if (urlFile.ok) {
+          const url = await urlFile.text();
+          const cleanUrl = url.trim();
+          if (cleanUrl) {
+            document.getElementById('server-url').value = cleanUrl;
+            localStorage.setItem('serverUrl', cleanUrl);
+            currentServerUrl = cleanUrl;
+            
+            const connected = await checkServerConnection(cleanUrl);
+            if (connected && !silent) {
+              statusText.textContent = 'Auto-detected URL and connected!';
+            }
+            
+            // Reset button text
+            detectBtn.textContent = originalText;
+            return connected;
+          }
+        }
+      } catch (e) {
+        console.log(`Path ${path} failed, trying next...`);
+      }
+    }
+    
+    // Third attempt: Try the current server URL with different paths
+    const currentUrl = getCurrentServerUrl();
+    if (currentUrl) {
+      for (const path of ['/', '/api', '/static', '/public']) {
+        try {
+          const urlFile = await fetch(`${currentUrl}${path}/localtunnel_url.txt`, { 
+            cache: 'no-store',
+            headers: { 'Cache-Control': 'no-cache' }
+          });
+          
+          if (urlFile.ok) {
+            const url = await urlFile.text();
+            const cleanUrl = url.trim();
+            if (cleanUrl) {
+              document.getElementById('server-url').value = cleanUrl;
+              localStorage.setItem('serverUrl', cleanUrl);
+              currentServerUrl = cleanUrl;
+              
+              const connected = await checkServerConnection(cleanUrl);
+              if (connected && !silent) {
+                statusText.textContent = 'Auto-detected URL and connected!';
+              }
+              
+              // Reset button text
+              detectBtn.textContent = originalText;
+              return connected;
+            }
+          }
+        } catch (e) {
+          console.log(`Path ${path} on current URL failed, trying next...`);
+        }
+      }
+    }
+    
+    // Try localhost URLs
+    const localUrls = [
+      'http://localhost:8000',
+      'http://127.0.0.1:8000'
+    ];
+    
+    for (const url of localUrls) {
+      console.log(`Trying local URL: ${url}`);
+      try {
+        const connected = await checkServerConnection(url);
+        if (connected) {
+          document.getElementById('server-url').value = url;
+          localStorage.setItem('serverUrl', url);
+          currentServerUrl = url;
+          
+          if (!silent) {
+            statusText.textContent = `Connected to ${url}!`;
+          }
+          
+          // Reset button text
+          detectBtn.textContent = originalText;
+          return true;
+        }
+      } catch (e) {
+        console.log(`Failed to connect to ${url}: ${e.message}`);
+      }
+    }
+    
+    // Last resort: Try default URL
+    const defaultUrl = 'https://planet09ai.loca.lt';
+    const connected = await checkServerConnection(defaultUrl);
+    if (connected) {
+      document.getElementById('server-url').value = defaultUrl;
+      localStorage.setItem('serverUrl', defaultUrl);
+      currentServerUrl = defaultUrl;
+      
+      if (!silent) {
+        statusText.textContent = 'Connected to default URL!';
+      }
+      
+      // Reset button text
+      detectBtn.textContent = originalText;
+      return true;
+    }
+    
+    // If we get here, all attempts failed
+    if (!silent) {
+      statusText.textContent = 'Could not auto-detect server URL';
+    }
+    
+    // Reset button text
+    detectBtn.textContent = originalText;
+    return false;
+  } catch (error) {
+    console.error("Auto-detect error:", error);
+    
+    if (!silent) {
+      statusText.textContent = `Auto-detect failed: ${error.message}`;
+    }
+    
+    // Reset button text
+    detectBtn.textContent = originalText;
+    return false;
+  }
+}
+
+// Clear chat history
+function clearChat() {
+  // Clear chat history array
+  chatHistory = [];
+  
+  // Clear localStorage
+  localStorage.removeItem('chatHistory');
+  
+  // Update UI
+  displayChatHistory();
+}
+
+// Scroll chat window to bottom
+function scrollChatToBottom() {
+  const chatContainer = document.getElementById('chat-history');
+  chatContainer.scrollTop = chatContainer.scrollHeight;
+}
+
+// Add a message to the chat (both UI and history)
+function addMessageToChat(content, type) {
+  // Add to chat history array
+  chatHistory.push({ content, type });
+  
+  // Save to localStorage (but limit size)
+  if (chatHistory.length > 50) {
+    // Keep only the last 50 messages to prevent localStorage overflows
+    chatHistory = chatHistory.slice(-50);
+  }
+  localStorage.setItem('chatHistory', JSON.stringify(chatHistory));
+  
+  // Add to UI
+  const chatContainer = document.getElementById('chat-history');
+  const msgElement = document.createElement('div');
+  msgElement.className = `message ${type === 'user' ? 'user-message' : 'response-message'}`;
+  msgElement.textContent = content;
+  chatContainer.appendChild(msgElement);
+  
+  // Scroll to bottom
+  scrollChatToBottom();
+}
+
+// Sign in with email/password
+function signIn() {
+  const email = document.getElementById('email').value.trim();
+  const password = document.getElementById('password').value;
+  
+  if (!email || !password) {
+    alert('Please enter both email and password.');
+    return;
+  }
+  
+  // Update button state
+  document.querySelectorAll('#login-container button').forEach(btn => {
+    btn.disabled = true;
+  });
+  
+  firebase.auth().signInWithEmailAndPassword(email, password)
+    .then((userCredential) => {
+      // Signed in successfully
+      console.log('User signed in:', userCredential.user.email);
+      // Buttons will be hidden by auth state change listener
+    })
+    .catch((error) => {
+      console.error('Error signing in:', error);
+      alert(`Sign in failed: ${error.message}`);
+      
+      // Re-enable buttons
+      document.querySelectorAll('#login-container button').forEach(btn => {
+        btn.disabled = false;
+      });
+    });
+}
+
+// Sign up with email/password
+function signUp() {
+  const email = document.getElementById('email').value.trim();
+  const password = document.getElementById('password').value;
+  
+  if (!email || !password) {
+    alert('Please enter both email and password.');
+    return;
+  }
+  
+  if (password.length < 6) {
+    alert('Password should be at least 6 characters.');
+    return;
+  }
+  
+  // Update button state
+  document.querySelectorAll('#login-container button').forEach(btn => {
+    btn.disabled = true;
+  });
+  
+  firebase.auth().createUserWithEmailAndPassword(email, password)
+    .then((userCredential) => {
+      // Signed up successfully
+      console.log('User signed up:', userCredential.user.email);
+      // Buttons will be hidden by auth state change listener
+    })
+    .catch((error) => {
+      console.error('Error signing up:', error);
+      alert(`Sign up failed: ${error.message}`);
+      
+      // Re-enable buttons
+      document.querySelectorAll('#login-container button').forEach(btn => {
+        btn.disabled = false;
+      });
+    });
+}
+
+// Forgot password
+function forgotPassword() {
+  const email = document.getElementById('email').value.trim();
+  
+  if (!email) {
+    alert('Please enter your email address.');
+    return;
+  }
+  
+  // Update button state
+  document.querySelectorAll('#login-container button').forEach(btn => {
+    btn.disabled = true;
+  });
+  
+  firebase.auth().sendPasswordResetEmail(email)
+    .then(() => {
+      alert('Password reset email sent! Check your inbox.');
+      
+      // Re-enable buttons
+      document.querySelectorAll('#login-container button').forEach(btn => {
+        btn.disabled = false;
+      });
+    })
+    .catch((error) => {
+      console.error('Error sending reset email:', error);
+      alert(`Error: ${error.message}`);
+      
+      // Re-enable buttons
+      document.querySelectorAll('#login-container button').forEach(btn => {
+        btn.disabled = false;
+      });
+    });
+}
+
+// Sign out
+function signOut() {
+  firebase.auth().signOut()
+    .then(() => {
+      console.log('User signed out');
+      // UI will be updated by auth state change listener
+    })
+    .catch((error) => {
+      console.error('Error signing out:', error);
+      alert(`Error signing out: ${error.message}`);
+    });
+}
+
+// Send a question to the API
+async function sendQuestion() {
+  const questionInput = document.getElementById('question');
+  const question = questionInput.value.trim();
+  
+  if (!question) {
+    alert('Please enter a question.');
+    return;
+  }
+  
+  // Check if in development mode or user is signed in
+  const user = firebase.auth().currentUser;
+  if (!user && !devModeEnabled) {
+    alert("Error: You must be signed in to ask questions or enable development mode.");
+    return;
+  }
+  
+  // Disable input and button during processing
+  questionInput.disabled = true;
+  const sendBtn = document.getElementById('send-btn');
+  const originalBtnText = sendBtn.textContent;
+  sendBtn.disabled = true;
+  sendBtn.textContent = 'Sending...';
+  
+  // Add user message to chat
+  addMessageToChat(question, 'user');
+  
+  // Create response placeholder
+  const responseId = 'response-' + Date.now();
+  const chatContainer = document.getElementById('chat-history');
+  const responsePlaceholder = document.createElement('div');
+  responsePlaceholder.className = 'message response-message';
+  responsePlaceholder.id = responseId;
+  responsePlaceholder.innerHTML = '<span class="loading-dots">Thinking</span>';
+  chatContainer.appendChild(responsePlaceholder);
+  scrollChatToBottom();
+  
+  // Clear input for next question
+  questionInput.value = '';
+  
+  // Get the server URL
+  const baseUrl = getCurrentServerUrl();
+  if (!baseUrl) {
+    responsePlaceholder.textContent = "Error: No server URL configured. Please set a server URL.";
+    sendBtn.disabled = false;
+    sendBtn.textContent = originalBtnText;
+    questionInput.disabled = false;
+    return;
+  }
+  
+  try {
+    // Prepare headers
+    const headers = {
+      'Content-Type': 'application/json',
+      'Accept': 'text/plain'
+    };
+    
+    // Add authentication if not in development mode
+    if (!devModeEnabled && user) {
+      const idToken = await user.getIdToken();
+      headers['Authorization'] = `Bearer ${idToken}`;
+    }
+    
+    // Make the API request with streaming support
+    const response = await fetch(`${baseUrl}/ask-hints?question=${encodeURIComponent(question)}`, {
+      method: 'GET',
+      headers: headers,
+      mode: 'cors',
+      credentials: 'omit' // Don't send cookies to avoid CORS preflight issues
+    });
+
+    if (!response.ok) {
+      // Check if token expired
+      if (response.status === 401) {
+        // Try to refresh token and retry
+        try {
+          await user.getIdToken(true); // Force refresh
+          
+          // Retry with new token
+          const newIdToken = await user.getIdToken();
+          const retryResponse = await fetch(`${baseUrl}/ask-hints?question=${encodeURIComponent(question)}`, {
+            method: 'GET',
+            headers: {
+              'Authorization': `Bearer ${newIdToken}`,
+              'Content-Type': 'application/json',
+              'Accept': 'text/plain'
+            },
+            mode: 'cors',
+            credentials: 'omit', // Don't send cookies
+            cache: 'no-cache' // Don't use cached responses
+          });
+          
+          if (retryResponse.ok) {
+            // Continue with the retry response
+            return await processStreamingResponse(retryResponse, responseId);
+          } else {
+            throw new Error(`${retryResponse.status} ${retryResponse.statusText}`);
+          }
+        } catch (retryError) {
+          throw new Error(`Authentication error: ${retryError.message}. Please sign out and back in.`);
+        }
+      } else {
+        throw new Error(`${response.status} ${response.statusText}`);
+      }
+    }
+
+    // Process the streaming response
+    await processStreamingResponse(response, responseId);
+  } catch (error) {
+    console.error("Error:", error);
+    
+    // Update the placeholder with the error
+    const responsePlaceholder = document.getElementById(responseId);
+    if (responsePlaceholder) {
+      responsePlaceholder.textContent = `Error: ${error.message}`;
+      
+      // Also update chat history since the placeholder is temporary
+      const errorIndex = chatHistory.length - 1;
+      if (chatHistory[errorIndex] && chatHistory[errorIndex].type === 'user') {
+        chatHistory.push({ content: `Error: ${error.message}`, type: 'response' });
+        localStorage.setItem('chatHistory', JSON.stringify(chatHistory));
+      }
+    }
+  } finally {
+    // Re-enable input and button
+    questionInput.disabled = false;
+    sendBtn.disabled = false;
+    sendBtn.textContent = originalBtnText;
+    questionInput.focus();
+  }
+}
+
+// Process streaming response
+async function processStreamingResponse(response, responseId) {
+  const reader = response.body.getReader();
+  const decoder = new TextDecoder('utf-8');
+  let done = false;
+  let fullText = '';
+  
+  // Get the placeholder element
+  const responsePlaceholder = document.getElementById(responseId);
+
+  while (!done) {
+    const { value, done: doneReading } = await reader.read();
+    done = doneReading;
+    
+    if (value) {
+      const chunk = decoder.decode(value);
+      fullText += chunk;
+      
+      // Update the placeholder with current text
+      if (responsePlaceholder) {
+        responsePlaceholder.textContent = fullText;
+        scrollChatToBottom();
+      }
+    }
+  }
+  
+  // When done, update chat history with the full response
+  chatHistory.push({ content: fullText, type: 'response' });
+  localStorage.setItem('chatHistory', JSON.stringify(chatHistory));
+}
+</script>
+
+</body>
+</html>
